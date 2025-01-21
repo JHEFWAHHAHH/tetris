@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tetris Game</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+
+    .game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-rows: repeat(20, 25px);
+      grid-template-columns: repeat(10, 25px);
+      gap: 1px;
+      background: #333;
+    }
+
+    .cell {
+      width: 25px;
+      height: 25px;
+      background: #444;
+      background-size: cover;
+    }
+
+    .active {
+      background-image: url('https://www.softwave.com.ua/wp-content/uploads/2020/06/H2S.jpg'); /* Replace with your image URL */
+    }
+
+    .score {
+      margin-top: 20px;
+      font-size: 20px;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .controls button {
+      background: #555;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      margin: 0 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background: #777;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="grid" id="grid"></div>
+    <div class="score">Score: <span id="score">0</span></div>
+    <div class="controls">
+      <button id="left">Left</button>
+      <button id="rotate">Rotate</button>
+      <button id="right">Right</button>
+      <button id="down">Down</button>
+    </div>
+  </div>
+
+  <audio id="move-sound" src="move-sound.mp3"></audio>
+  <audio id="rotate-sound" src="rotate-sound.mp3"></audio>
+  <audio id="line-clear-sound" src="line-clear-sound.mp3"></audio>
+  <audio id="game-over-sound" src="game-over-sound.mp3"></audio>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const scoreDisplay = document.getElementById('score');
+    const moveSound = document.getElementById('move-sound');
+    const rotateSound = document.getElementById('rotate-sound');
+    const lineClearSound = document.getElementById('line-clear-sound');
+    const gameOverSound = document.getElementById('game-over-sound');
+
+    const width = 10;
+    const height = 20;
+    let squares = [];
+    let currentPosition = 4;
+    let currentRotation = 0;
+    let score = 0;
+
+    // Tetrominoes
+    const lTetromino = [
+      [1, width+1, width*2+1, 2],
+      [width, width+1, width+2, width*2+2],
+      [1, width+1, width*2+1, width*2],
+      [width, width*2, width*2+1, width*2+2]
+    ];
+
+    const zTetromino = [
+      [0, width, width+1, width*2+1],
+      [width+1, width+2, width*2, width*2+1],
+      [0, width, width+1, width*2+1],
+      [width+1, width+2, width*2, width*2+1]
+    ];
+
+    const tTetromino = [
+      [1, width, width+1, width+2],
+      [1, width+1, width+2, width*2+1],
+      [width, width+1, width+2, width*2+1],
+      [1, width, width+1, width*2+1]
+    ];
+
+    const oTetromino = [
+      [0, 1, width, width+1],
+      [0, 1, width, width+1],
+      [0, 1, width, width+1],
+      [0, 1, width, width+1]
+    ];
+
+    const iTetromino = [
+      [1, width+1, width*2+1, width*3+1],
+      [width, width+1, width+2, width+3],
+      [1, width+1, width*2+1, width*3+1],
+      [width, width+1, width+2, width+3]
+    ];
+
+    const theTetrominoes = [lTetromino, zTetromino, tTetromino, oTetromino, iTetromino];
+
+    let random = Math.floor(Math.random() * theTetrominoes.length);
+    let current = theTetrominoes[random][currentRotation];
+
+    // Create the grid
+    function createGrid() {
+      for (let i = 0; i < width * height; i++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        grid.appendChild(cell);
+        squares.push(cell);
+      }
+    }
+
+    createGrid();
+
+    // Draw the Tetromino
+    function draw() {
+      current.forEach(index => {
+        squares[currentPosition + index].classList.add('active');
+      });
+    }
+
+    function undraw() {
+      current.forEach(index => {
+        squares[currentPosition + index].classList.remove('active');
+      });
+    }
+
+    // Move Tetromino down
+    function moveDown() {
+      undraw();
+      currentPosition += width;
+      draw();
+      freeze();
+    }
+
+    // Freeze Tetromino
+    function freeze() {
+      if (current.some(index => squares[currentPosition + index + width]?.classList.contains('taken') || currentPosition + index + width >= width * height)) {
+        current.forEach(index => squares[currentPosition + index].classList.add('taken'));
+        random = Math.floor(Math.random() * theTetrominoes.length);
+        current = theTetrominoes[random][currentRotation];
+        currentPosition = 4;
+        draw();
+        addScore();
+        gameOver();
+      }
+    }
+
+    // Move Tetromino left or right
+    function moveLeft() {
+      undraw();
+      const isAtLeftEdge = current.some(index => (currentPosition + index) % width === 0);
+      if (!isAtLeftEdge) currentPosition -= 1;
+      if (current.some(index => squares[currentPosition + index].classList.contains('taken'))) {
+        currentPosition += 1;
+      }
+      draw();
+      moveSound.play();
+    }
+
+    function moveRight() {
+      undraw();
+      const isAtRightEdge = current.some(index => (currentPosition + index) % width === width - 1);
+      if (!isAtRightEdge) currentPosition += 1;
+      if (current.some(index => squares[currentPosition + index].classList.contains('taken'))) {
+        currentPosition -= 1;
+      }
+      draw();
+      moveSound.play();
+    }
+
+    // Rotate Tetromino
+    function rotate() {
+      undraw();
+      currentRotation = (currentRotation + 1) % current.length;
+      current = theTetrominoes[random][currentRotation];
+      draw();
+      rotateSound.play();
+    }
+
+    // Add score
+    function addScore() {
+      for (let i = 0; i < squares.length; i += width) {
+        const row = squares.slice(i, i + width);
+        if (row.every(cell => cell.classList.contains('taken'))) {
+          score += 10;
+          scoreDisplay.textContent = score;
+          row.forEach(cell => {
+            cell.classList.remove('taken', 'active');
+          });
+          squares.splice(i, width);
+          const newRow = Array(width).fill(null).map(() => {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            return cell;
+          });
+          squares = newRow.concat(squares);
+          grid.innerHTML = '';
+          squares.forEach(cell => grid.appendChild(cell));
+          lineClearSound.play();
+        }
+      }
+    }
+
+    // Game over
+    function gameOver() {
+      if (current.some(index => squares[currentPosition + index].classList.contains('taken'))) {
+        gameOverSound.play();
+        alert('Game Over!');
+        clearInterval(timerId);
+      }
+    }
+
+    // Controls
+    document.getElementById('left').addEventListener('click', moveLeft);
+    document.getElementById('right').addEventListener('click', moveRight);
+    document.getElementById('rotate').addEventListener('click', rotate);
+    document.getElementById('down').addEventListener('click', moveDown);
+
+    // Auto move down
+    let timerId = setInterval(moveDown, 1000);
+  </script>
+</body>
+</html>
